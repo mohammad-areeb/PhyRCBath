@@ -1,107 +1,130 @@
-import json
 from pyrcareworld.envs.bathing_env import BathingEnv
 import numpy as np
 import cv2
 import argparse
-import math
+import mediapipe as mp
 
-img_size = 512
-world_x_min = -2
-world_x_max = 2
-world_range_x = world_x_max - world_x_min
-world_z_min = -1
-world_z_max = 3
-world_range_z = world_z_max - world_z_min
-camera_min = 1
-camera_max = img_size
-camera_range = camera_max - camera_min
-camera = None 
+class Perception:
 
-def get_sponge_coords(env: BathingEnv) -> list:
-    """
-    Get the global coordinates of the sponge in the environment
-    :param env: the BathingEnv object
-    :return: a list of the (x, y, z) coordinates of the sponge object (where y is vertical)
-    """
-    sponge_details = env.get_sponge().data
-    return sponge_details.get("position")
+    img_size = 512
+    world_x_min = -2
+    world_x_max = 2
+    world_range_x = world_x_max - world_x_min
+    world_z_min = -1
+    world_z_max = 3
+    world_range_z = world_z_max - world_z_min
+    camera_min = 1
+    camera_max = img_size
+    camera_range = camera_max - camera_min
+    camera = None 
+    manikin_landmarks = []
 
-def get_gripper_coords(env: BathingEnv) -> list:
-    """
-    Get the global coordinates of the sponge in the environment
-    :param env: the BathingEnv object
-    :return: a list of the (x, y, z) coordinates of the sponge object (where y is vertical)
-    """
-    gripper = env.get_gripper()
-    return gripper.data['position']
+    # Initialize Mediapipe Pose
+    mp_drawing = mp.solutions.drawing_utils
+    mp_pose = mp.solutions.pose
 
-def camera_to_world(camera_x, camera_z) -> list:
-    """
-    Get the global coordinates in the world from the (x, y) pixel coordinate in an image
-    :param camera_x: the x-coordinate pixel (horizontal)
-    :param camera_z: the y-coordinate pixel (vertical)
-    :return: a list of the (x, y, z) world coordinates of the pixel coordinate (where y = 0.0 as height data cannot be inferred)
-    """
-    world_x = (((camera_x - camera_min) * world_range_x) / (camera_range - 1)) + world_x_min
-    world_z = ((((512 - camera_z) - camera_min) * world_range_z) / (camera_range - 1)) + world_z_min
-    return([world_x, 0.0, world_z])
+    pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
-#is this needed??
-# def world_to_camera(world_x, world_z) -> list:
-#     rotated_x = (math.cos(90) * world_x + math.sin(90) * world_z)
-#     rotated_z = ((-math.sin(90) * world_x) + math.cos(90) * world_z)
-#     #     OldRange = (OldMax - OldMin)  
-#     # NewRange = (NewMax - NewMin)  
-#     # NewValue = (((OldValue - OldMin) * NewRange) / OldRange) + NewMin
-#     camera_x = (((rotated_x - (-2)) * img_size) / world_range_x) - 1
-#     camera_y = (((rotated_z - (-1)) * img_size) / world_range_z) - 1
-#     #flip for img processing
-#     #camera_y = 512 - camera_y
-#     #camera_x = camera_x - x_offset
-#     #camera_y = camera_y - y_offset
-#     return [camera_x, camera_y]
+    def __init__(self, env:BathingEnv):
+        self.environment = env
+        self.camera = self.environment.get_camera()
+        self.camera.SetTransform(position=[0, 3.8, 1.0], rotation=[90, 0, 0])
 
-def find_water_tank(env: BathingEnv) -> list:
-    """
-    Get the global coordinates of the water tank in the environment
-    :param env: the BathingEnv object
-    :return: a list of the (x, y, z) coordinates of the centre of the water tank object (where y = 0.0 as no vertical data can be inferred)
-    """
-    global camera
-    camera.GetRGB(512, 512)
-    env.step()
-    rgb = np.frombuffer(camera.data["rgb"], dtype=np.uint8)
-    rgb = cv2.imdecode(rgb, cv2.IMREAD_COLOR)
-    #cv2.imwrite("sky_cam_new.png", rgb)
-    
-    # Convert to graycsale
-    img_gray = cv2.cvtColor(rgb, cv2.COLOR_BGR2GRAY)
+    def get_sponge_coords(self) -> list:
+        """
+        Get the global coordinates of the sponge in the environment
+        :param env: the BathingEnv object
+        :return: a list of the (x, y, z) coordinates of the sponge object (where y is vertical)
+        """
+        sponge_details = self.environment.get_sponge().data
+        return sponge_details.get("position")
 
-    # Set up the detector with default parameters.
-    detector = cv2.SimpleBlobDetector_create()
-    # Detect blobs.
-    keypoints = detector.detect(img_gray)
-    #im_with_keypoints = cv2.drawKeypoints(img_gray, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-    
-    bowl_x = 0
-    bowl_z = 0
-    size = 0
-    for k in keypoints:
-        if k.size > size:
-            bowl_x = k.pt[0]
-            bowl_z = k.pt[1]
-            size = k.size
+    def get_gripper_coords(self) -> list:
+        """
+        Get the global coordinates of the sponge in the environment
+        :param env: the BathingEnv object
+        :return: a list of the (x, y, z) coordinates of the sponge object (where y is vertical)
+        """
+        gripper = self.environment.get_gripper()
+        return gripper.data['position']
 
-    #DEBUG
-    #cv2.circle(im_with_keypoints, (int(x), int(y)), int(size/3), (0,0,255))
-    #cv2.circle(im_with_keypoints, (int(camera_coords[0]), int(camera_coords[1])), int(size/3), (0,255,0))
-    #cv2.imshow("Keypoints", im_with_keypoints)
+    def camera_to_world(self, camera_x, camera_z) -> list:
+        """
+        Get the global coordinates in the world from the (x, y) pixel coordinate in an image
+        :param camera_x: the x-coordinate pixel (horizontal)
+        :param camera_z: the y-coordinate pixel (vertical)
+        :return: a list of the (x, y, z) world coordinates of the pixel coordinate (where y = 0.0 as height data cannot be inferred)
+        """
 
-    #DEBUG
-    #print("bowl location")
-    #print(camera_to_world(x, y))
+        world_x = (((camera_x - self.camera_min) * self.world_range_x) / (self.camera_range - 1)) + self.world_x_min
+        world_z = ((((self.img_size - camera_z) - self.camera_min) * self.world_range_z) / (self.camera_range - 1)) + self.world_z_min
+        return([world_x, 0.0, world_z])
 
-    return camera_to_world(bowl_x, 0.0, bowl_z)
+    def find_water_tank(self) -> list:
+        """
+        Get the global coordinates of the water tank in the environment
+        :param env: the BathingEnv object
+        :return: a list of the (x, y, z) coordinates of the centre of the water tank object (where y = 0.0 as no vertical data can be inferred)
+        """
+        self.camera.GetRGB(512, 512)
+        self.environment.step()
+        rgb = np.frombuffer(self.camera.data["rgb"], dtype=np.uint8)
+        rgb = cv2.imdecode(rgb, cv2.IMREAD_COLOR)
+        #cv2.imwrite("sky_cam_new.png", rgb)
+        
+        # Convert to graycsale
+        img_gray = cv2.cvtColor(rgb, cv2.COLOR_BGR2GRAY)
+
+        # Set up the detector with default parameters.
+        detector = cv2.SimpleBlobDetector_create()
+        # Detect blobs.
+        keypoints = detector.detect(img_gray)
+        #im_with_keypoints = cv2.drawKeypoints(img_gray, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        
+        bowl_x = 0
+        bowl_z = 0
+        size = 0
+        for k in keypoints:
+            if k.size > size:
+                bowl_x = k.pt[0]
+                bowl_z = k.pt[1]
+                size = k.size
+
+        #DEBUG
+        #cv2.circle(im_with_keypoints, (int(x), int(y)), int(size/3), (0,0,255))
+        #cv2.circle(im_with_keypoints, (int(camera_coords[0]), int(camera_coords[1])), int(size/3), (0,255,0))
+        #cv2.imshow("Keypoints", im_with_keypoints)
+
+        #DEBUG
+        #print("bowl location")
+        #print(camera_to_world(x, y))
+
+        return self.camera_to_world(bowl_x, 0.0, bowl_z)
+
+    def find_manikin(self, body_part) -> list:
+        """
+        Get the global coordinates of the manikin's specified body part in the environment
+        :param body_part: string name of the body part
+        :return: a list of the (x, y, z) coordinates of the body part (where y = 0.0 as no vertical data can be inferred)
+        """
+        if len(self.manikin_landmarks) == 0:
+            self.camera.GetRGB(512, 512)
+            self.environment.step()
+            rgb = np.frombuffer(self.camera.data["rgb"], dtype=np.uint8)
+            rgb = cv2.imdecode(rgb, cv2.IMREAD_COLOR)
+            # Process the frame with Mediapipe
+            results = self.pose.process(rgb)
+            for id, landmark in enumerate(results.pose_landmarks.landmark):
+                h, w, _ = rgb.shape  # Get the dimensions of the frame
+                cx, cy = int(landmark.x * w), int(landmark.y * h) #convert normalised coordinates to pixels
+                self.manikin_landmarks.append([self.mp_pose.PoseLandmark(id).name, cx, cy])
+                #DEBUG print(f"ID: {id}, Name: {self.mp_pose.PoseLandmark(id).name}, X: {cx}, Y: {cy}")
+                #DEBUG cv2.circle(rgb, (int(cx), int(cy)), 5, (255,0,0), cv2.FILLED)
+
+        #DEBUG cv2.imwrite('skelly.png', rgb)
+        for landmark in self.manikin_landmarks:
+            if landmark[0] == body_part:
+                return self.camera_to_world(landmark[1], landmark[2])
 
 def _main(use_graphics=False):
     # Initialize the environment
@@ -109,12 +132,14 @@ def _main(use_graphics=False):
 
     robot = env.get_robot()
     env.step()
-    print(robot.data)
+    #print(robot.data)
+
+    
 
     # Control the gripper
     gripper = env.get_gripper()
-    print("gripper info")
-    print(gripper.data)
+    #print("gripper info")
+    #print(gripper.data)
     gripper.GripperOpen()
     env.step(300)
 
@@ -128,7 +153,6 @@ def _main(use_graphics=False):
     env.step()
 
     # Camera operations: rig the skycam
-    global camera
     camera = env.get_camera()
     camera.SetTransform(position=[0, 3.8, 1.0], rotation=[90, 0, 0])
 
@@ -136,7 +160,39 @@ def _main(use_graphics=False):
     env.step()
     rgb = np.frombuffer(camera.data["rgb"], dtype=np.uint8)
     rgb = cv2.imdecode(rgb, cv2.IMREAD_COLOR)
-    cv2.imwrite("sky_cam_new.png", rgb)
+    cv2.imshow('original',rgb)
+    #cv2.imwrite("sky_cam_new.png", rgb)
+
+    p = Perception(env)
+    print(p.find_manikin("RIGHT_ELBOW"))
+
+    
+
+    # Drawing the skeleton 
+    # if results.pose_landmarks:
+    #     mp_drawing.draw_landmarks(
+    #         rgb,
+    #         results.pose_landmarks,
+    #         mp_pose.POSE_CONNECTIONS,
+    #         mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=3),
+    #         mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2, circle_radius=3)
+    #     )
+
+    #     # joint coordinates
+    #     for id, landmark in enumerate(results.pose_landmarks.landmark):
+    #         h, w, _ = rgb.shape  # Get the dimensions of the frame
+    #         cx, cy = int(landmark.x * w), int(landmark.y * h)  # Convert normalized coordinates to pixel values
+    #         print(f"ID: {id}, Name: {mp_pose.PoseLandmark(id).name}, X: {cx}, Y: {cy}")
+    #         cv2.circle(rgb, (cx, cy), 5, (255, 0, 0), cv2.FILLED)
+        
+    #cv2.imshow('Skeleton Detection', rgb)
+
+    #cv2.waitKey(1)
+
+    # for id, landmark in enumerate(results.pose_landmarks.landmark):
+    #     h, w, _ = rgb.shape  # Get the dimensions of the frame
+    #     cx, cy = int(landmark.x * w), int(landmark.y * h) #convert normalised coordinates to pixels
+    #     print(f"ID: {id}, Name: {mp_pose.PoseLandmark(id).name}, X: {cx}, Y: {cy}")
 
     # Move the robot to some radom pisitions
     # to note, these positions might not be reachable. The robot will try to reach the closest possible position
