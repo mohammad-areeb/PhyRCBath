@@ -89,7 +89,7 @@ class Perception:
 
         return self.camera_to_world(bowl_x, 0.0, bowl_z)
 
-    def find_manikin(self, body_part) -> list: 
+    def find_manikin(self, body_part:str=None, landmark_number:int=None) -> list: 
         """
         Get the global coordinates of the manikin's specified body part in the environment
         :param body_part: string name of the body part
@@ -102,14 +102,22 @@ class Perception:
             rgb = cv2.imdecode(rgb, cv2.IMREAD_COLOR)
             # Process the frame with Mediapipe
             results = self.pose.process(rgb)
+            landmark_num = 0
             for id, landmark in enumerate(results.pose_landmarks.landmark):
                 h, w, _ = rgb.shape  # Get the dimensions of the frame
                 cx, cy = int(landmark.x * w), int(landmark.y * h) #convert normalised coordinates to pixels
-                self.manikin_landmarks.append([self.mp_pose.PoseLandmark(id).name, cx, cy])
+                self.manikin_landmarks.append([landmark_num, self.mp_pose.PoseLandmark(id).name, cx, cy])
+                landmark_num += 1
                 #DEBUG print(f"ID: {id}, Name: {self.mp_pose.PoseLandmark(id).name}, X: {cx}, Y: {cy}")
                 #DEBUG cv2.circle(rgb, (int(cx), int(cy)), 5, (255,0,0), cv2.FILLED)
 
         #DEBUG cv2.imwrite('skelly.png', rgb)
-        for landmark in self.manikin_landmarks: 
-            if landmark[0] == body_part:
-                return self.camera_to_world(landmark[1], landmark[2])
+        if body_part != None: 
+            for landmark in self.manikin_landmarks: 
+            		if landmark[1] == body_part:
+                           return self.camera_to_world(landmark[2], landmark[3])
+        elif landmark_number != None: 
+             for landmark in self.manikin_landmarks: 
+            		if landmark[0] == landmark_number:
+                           return self.camera_to_world(landmark[2], landmark[3])
+                		
