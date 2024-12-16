@@ -1,10 +1,12 @@
 import json
+import utils
 from pyrcareworld.envs.bathing_env import BathingEnv
 import numpy as np
 import cv2
 import argparse
 
-def _main(use_graphics=False):
+
+def _main(use_graphics=False, dev=None):
     if use_graphics:
         text = """
         An example of the usage of the bathing environment.
@@ -23,114 +25,22 @@ def _main(use_graphics=False):
 
         print(text) 
     # Initialize the environment
-    env = BathingEnv(graphics=use_graphics)
-    print(env.attrs)
-
+    random_seed= utils.manikin_randomizer(True)
+    print(random_seed)
+    env = BathingEnv(graphics=use_graphics, seed=random_seed) if dev == False else BathingEnv(graphics=use_graphics, executable_file="@editor")
     robot = env.get_robot()
+    robot = utils.random_robot_pose(robot)
     env.step()
-    print(robot.data)
-
-    # Control the gripper
-    gripper = env.get_gripper()
-    gripper.GripperOpen()
-    env.step(300)
-
-    gripper.GripperClose()
-    env.step(300)
-
-    # Obtain sponge data and simulate a step
     sponge = env.get_sponge()
+    print(sponge.data)
+    sponge = utils.random_sponge_pose(sponge)
     env.step()
     print(sponge.data)
 
-    # Camera operations: Attach a camera to the robot's hand
-    camera = env.get_camera()
-    camera.SetTransform(position=gripper.data['position'], rotation=[0, 0, 0])
-    camera.SetParent(2215820)
-    camera.GetRGB(512, 512)
-    env.step()
-    rgb = np.frombuffer(camera.data["rgb"], dtype=np.uint8)
-    rgb = cv2.imdecode(rgb, cv2.IMREAD_COLOR)
-    cv2.imwrite("rgb_hand.png", rgb)
-
-    # Move the robot to some radom pisitions
-    # to note, these positions might not be reachable. The robot will try to reach the closest possible position
-    position1 = (0.492, 0.644, 0.03)
-    position2 = (0.296, 0.849, 3.168)
-
-    robot.IKTargetDoMove(
-        position=[position1[0], position1[1] + 0.5, position1[2]],
-        duration=2,
-        speed_based=False,
-    )
-    robot.WaitDo()
-    robot.IKTargetDoMove(
-        position=[position1[0], position1[1], position1[2]],
-        duration=2,
-        speed_based=False,
-    )
-    robot.WaitDo()
-    robot.IKTargetDoKill()
-
-    # disable IK movement
-    # in this mode, you can directly control the robot's joints
-    robot.EnabledNativeIK(False)
-
-    gripper.GripperClose()
-    env.step(50)
-    for i in range(200):
-        robot.SetJointVelocity([0, 0, 0, -0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        env.step()
-
-    for i in range(200):
-        robot.SetJointVelocity([0, 0, 0, -0.5, -0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        env.step()
-    
-    for i in range(200):
-        robot.SetJointVelocity([0, 0, 0, -0.5, -0.5, -0.5, 0, 0, 0, 0, 0, 0, 0, 0])
-        env.step()
-    
-    
-    """
-        The Stretch's movement speed is related to the time in the step() method, as well as the defined distance and speed.
-        
-        - If the `env.step` duration is too short, it can lead to incomplete turns and might cause the robot to move too quickly.
-
-        - If the `env.step` duration is too long, it can lead to slow drifting due to friction.
-
-        - If the speed is too fast, it can cause the robot to move too quickly and fall apart, and it may also result in the robot jumping and falling down.
-
-        - If the speed is too slow, it can lead to the robot not moving at all, only making slight movements, or quickly returning to its original position after moving.
-
-        - If you observe stretching and contracting in the robot's arm, this is due to angular momentum. Reducing speed can lessen this effect. Additionally, we recommend lowering the robot's arm during movement to lower the center of gravity, effectively reducing this issue and ensuring arm stability.
-
-        Below is a simple example where the robot can move smoothly using these parameters, though there is significant room for adjustment.
-
-        Particularly, we do not recommend continuous motion as it can lead to great instability. It is better to interrupt and halt movement intermittently to reduce continuous motion.
-    """
-    robot.TurnLeft(90, 1)
-    env.step(600)
-    
-    # robot.StopMovement()
-    # env.step(30)
-    
-    robot.TurnRight(90, 1)
-    env.step(600)
-    
-    # robot.StopMovement()
-    # env.step(30)
-    
-    robot.MoveForward(0.6, 0.2)
-    env.step(300)
-
-
-    # Additional simulation logic can be added here
-    # For example:
-    print("Force", sponge.GetForce())
-    env.step()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run RCareWorld bathing environment simulation.')
     parser.add_argument('-g', '--graphics', action='store_true', help='Enable graphics')
+    parser.add_argument('-d', '--dev', action='store_true', help='Run in developer mode')
     args = parser.parse_args()
-    _main(use_graphics=args.graphics)
+    _main(use_graphics=args.graphics, dev=args.dev)
