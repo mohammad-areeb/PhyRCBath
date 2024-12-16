@@ -29,6 +29,9 @@ def _main(use_graphics=False):
     #get coordinates of gripper
     print("Gripper coords: ", p.get_gripper_coords())
 
+    #get coordinates of centre of water tank
+    print("Water tank coords: ", p.find_water_tank())
+
     #query the manikin_landmarks array for a specific landmark by name
     print("Coords of manikin's right elbow: ", p.find_manikin(body_part="RIGHT_ELBOW"))
     #query the manikin_landmarks array for a specific landmark by number
