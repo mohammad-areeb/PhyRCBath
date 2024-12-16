@@ -10,7 +10,7 @@ def _main(use_graphics=False):
 
     robot = env.get_robot()
     env.step()
-    #print(robot.data)
+    print(robot.data)
 
     # Control the gripper
     gripper = env.get_gripper()
@@ -30,12 +30,12 @@ def _main(use_graphics=False):
     print("Gripper coords: ", p.get_gripper_coords())
 
     #get coordinates of centre of water tank
-    print("Water tank coords: ", p.find_water_tank())
+    print("Water tank coords: ", p.get_water_tank())
 
     #query the manikin_landmarks array for a specific landmark by name
-    print("Coords of manikin's right elbow: ", p.find_manikin(body_part="RIGHT_ELBOW"))
+    print("Coords of manikin's right elbow: ", p.get_manikin(body_part="RIGHT_ELBOW"))
     #query the manikin_landmarks array for a specific landmark by number
-    print("Coords of manikin's landmark 14: ", p.find_manikin(landmark_number=14))
+    print("Coords of manikin's landmark 14: ", p.get_manikin(landmark_number=14))
     env.step()
 
 
