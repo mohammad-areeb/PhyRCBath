@@ -21,6 +21,7 @@ class Perception:
     sky_cam = None
     manikin_cam = None
     manikin_landmarks = []
+    depth = None
 
     # Initialize Mediapipe Pose
     mp_drawing = mp.solutions.drawing_utils
@@ -38,6 +39,10 @@ class Perception:
         self.sky_cam.SetTransform(position=[0, 3.8, 1.0], rotation=[90, 0, 0])
         self.manikin_cam.SetTransform(position=[0, 3.8, 0],
             rotation=[90, 0, 0])
+        self.manikin_cam.GetDepth16Bit(1.0, 3.8)
+        self.environment.step(1)
+        self.depth = np.frombuffer(self.manikin_cam.data["depth"], dtype=np.uint8)
+        self.depth = cv2.imdecode(self.depth, cv2.IMREAD_GRAYSCALE)
 
     def get_sponge_coords(self) -> list:
         """
@@ -85,11 +90,9 @@ class Perception:
             (self.camera_range - 1)) + -2
         return ([world_x, 0.0, world_z])
 
-    def get_water_tank(self) -> list:
+    def take_pictures(self):
         """
-        Get the global coordinates of the water tank in the environment
-        :param env: the BathingEnv object
-        :return: a list of the (x, y, z) coords of the centre of the water tank
+        Debug method to take images from both cameras
         """
         self.sky_cam.GetRGB(512, 512)
         self.manikin_cam.GetRGB(512, 512)
@@ -99,8 +102,48 @@ class Perception:
         rgb = cv2.imdecode(rgb, cv2.IMREAD_COLOR)
         rgb2 = cv2.imdecode(rgb2, cv2.IMREAD_COLOR)
 
-        cv2.imwrite("skycam.png", rgb)
-        cv2.imwrite("manikincam.png", rgb2)
+        cv2.imwrite("skycam_1.png", rgb)
+        cv2.imwrite("manikincam_1.png", rgb2)
+    
+    def get_depth(self, landmark_num: int = None, body_part: str = None):
+        """
+        Get the depth in metres of a manikin landmark
+        :param landmark_num: the number of the landmark
+        :param body_part: the name of the landmark
+        :return: a distance in metres from the floor
+        """
+        self.manikin_cam.GetDepth16Bit(1.0, 3.8)
+        self.environment.step(1)
+        self.depth = np.frombuffer(self.manikin_cam.data["depth"], dtype=np.uint8)
+        self.depth = cv2.imdecode(self.depth, cv2.IMREAD_GRAYSCALE)
+        for landmark in self.manikin_landmarks:
+            if landmark[0] == landmark_num or landmark[1] == body_part:
+                print(landmark)
+                depth_pixel_value = self.depth[landmark[2],landmark[3]]
+                print("depth value: ", depth_pixel_value)
+                if (depth_pixel_value == 255):
+                    scaled_depth = 3.8
+                else:
+                    scaled_depth = (depth_pixel_value / 255) * (3.8 - 1.0)
+                print("distance: ", scaled_depth)
+                return 3.8 - scaled_depth
+    
+    def get_water_tank(self) -> list:
+        """
+        Get the global coordinates of the water tank in the environment
+        :param env: the BathingEnv object
+        :return: a list of the (x, y, z) coords of the centre of the water tank
+        """
+        self.sky_cam.GetRGB(512, 512)
+        # self.manikin_cam.GetRGB(512, 512)
+        self.environment.step()
+        rgb = np.frombuffer(self.sky_cam.data["rgb"], dtype=np.uint8)
+        # rgb2 = np.frombuffer(self.manikin_cam.data["rgb"], dtype=np.uint8)
+        rgb = cv2.imdecode(rgb, cv2.IMREAD_COLOR)
+        # rgb2 = cv2.imdecode(rgb2, cv2.IMREAD_COLOR)
+
+        # cv2.imwrite("skycam.png", rgb)
+        # cv2.imwrite("manikincam.png", rgb2)
 
         self.environment.step()
 
@@ -121,38 +164,35 @@ class Perception:
                 size = k.size
 
         return self.camera_to_world(bowl_x, bowl_z)
+    
+    def generate_landmarks(self):
+        self.manikin_cam.GetRGB(512, 512)
+        self.environment.step()
+        rgb = np.frombuffer(self.manikin_cam.data["rgb"], dtype=np.uint8)
+        rgb = cv2.imdecode(rgb, cv2.IMREAD_COLOR)
+        # Process the frame with Mediapipe
+        results = self.pose.process(rgb)
+        landmark_num = 0
+        for id, landmark in enumerate(results.pose_landmarks.landmark):
+            # Get the dimensions of the frame
+            h, w, _ = rgb.shape
+            # convert normalised coordinates to pixels
+            cx, cy = int(landmark.x * w), int(landmark.y * h)
+            self.manikin_landmarks.append(
+                    [landmark_num, self.mp_pose.PoseLandmark(id).name, cx, cy])
+            landmark_num += 1
+            # print(f"ID: {id}, Name: {self.mp_pose.PoseLandmark(id).name},
+            # X: {cx}, Y: {cy}")
+            # cv2.circle(rgb, (int(cx), int(cy)), 5, (255,0,0), cv2.FILLED)
+            # cv2.imwrite('skelly_new.png', rgb)
 
-    def get_manikin(self, body_part: str = None, landmark: int = None) -> list:
+    def get_manikin(self, body_part: str = None, landmark_num: int = None) -> list:
         """
         Get the global coordinates of the manikin's specified body part
         :param body_part: string name of the body part
         :return: a list of the (x, y, z) coordinates of the body part
         """
-        if len(self.manikin_landmarks) == 0:
-            self.manikin_cam.GetRGB(512, 512)
-            self.environment.step()
-            rgb = np.frombuffer(self.manikin_cam.data["rgb"], dtype=np.uint8)
-            rgb = cv2.imdecode(rgb, cv2.IMREAD_COLOR)
-            # Process the frame with Mediapipe
-            results = self.pose.process(rgb)
-            landmark_num = 0
-            for id, landmark in enumerate(results.pose_landmarks.landmark):
-                # Get the dimensions of the frame
-                h, w, _ = rgb.shape
-                # convert normalised coordinates to pixels
-                cx, cy = int(landmark.x * w), int(landmark.y * h)
-                self.manikin_landmarks.append(
-                    [landmark_num, self.mp_pose.PoseLandmark(id).name, cx, cy])
-                landmark_num += 1
-                # print(f"ID: {id}, Name: {self.mp_pose.PoseLandmark(id).name},
-                # X: {cx}, Y: {cy}")
-                # cv2.circle(rgb, (int(cx), int(cy)), 5, (255,0,0), cv2.FILLED)
-                # cv2.imwrite('skelly.png', rgb)
-        if body_part is not None:
-            for landmark in self.manikin_landmarks:
-                if landmark[1] == body_part:
-                    return self.manikincam_to_world(landmark[2], landmark[3])
-        elif landmark_number is not None:
-             for landmark in self.manikin_landmarks:
-                if landmark[0] == landmark_number:
-                    return self.manikincam_to_world(landmark[2], landmark[3])
+        for landmark in self.manikin_landmarks:
+            if landmark[0] == landmark_num or landmark[1] == body_part:
+                return self.manikincam_to_world(landmark[2], landmark[3])
+

@@ -32,11 +32,19 @@ def _main(use_graphics=False):
     #get coordinates of centre of water tank
     print("Water tank coords: ", p.get_water_tank())
 
+    # IMPORTANT you must call generate_landmarks before you can access them!
+    p.generate_landmarks()
+    
     #query the manikin_landmarks array for a specific landmark by name
     print("Coords of manikin's right elbow: ", p.get_manikin(body_part="RIGHT_ELBOW"))
     #query the manikin_landmarks array for a specific landmark by number
-    print("Coords of manikin's landmark 14: ", p.get_manikin(landmark_number=14))
+    print("Coords of manikin's landmark 14: ", p.get_manikin(landmark_num=14))
     env.step()
+
+    #depth of elbow from floor
+    print(p.get_depth(14))
+    # depth of nose from floor
+    print(p.get_depth(0))
 
 
 if __name__ == "__main__":
