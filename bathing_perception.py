@@ -166,6 +166,7 @@ class Perception:
         return self.camera_to_world(bowl_x, bowl_z)
     
     def generate_landmarks(self):
+        """Generate the landmarks of the manikin using MediaPipe"""
         self.manikin_cam.GetRGB(512, 512)
         self.environment.step()
         rgb = np.frombuffer(self.manikin_cam.data["rgb"], dtype=np.uint8)

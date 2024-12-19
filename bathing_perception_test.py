@@ -41,9 +41,9 @@ def _main(use_graphics=False):
     print("Coords of manikin's landmark 14: ", p.get_manikin(landmark_num=14))
     env.step()
 
-    #depth of elbow from floor
+    #height of elbow from floor
     print(p.get_depth(14))
-    # depth of nose from floor
+    # height of nose from floor
     print(p.get_depth(0))
 
 
