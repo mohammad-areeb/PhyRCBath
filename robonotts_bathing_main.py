@@ -52,10 +52,10 @@ def movement_from_A_to_landmark(env, robot, fixed_point, final_point):
     # Turn towards the final point
     if z2 < z1:
         print("Turn left")
-        robot.TurnRight(90, 1)
+        robot.TurnLeft(90, 1)
     else:
         print("Turn right")
-        robot.TurnLeft(90, 1)
+        robot.TurnRight(90, 1)
     env.step(300)
 
     # Move to transitional point
@@ -84,7 +84,7 @@ def movement_from_A_to_landmark(env, robot, fixed_point, final_point):
 
     # Stop
     print("Stop")
-    robot.TurnRight(90, 1)
+    robot.TurnRight(0, 1)
     env.step(300)
 
     print(f"Reached position: {final_point}")
@@ -281,7 +281,7 @@ def _main(use_graphics=False, dev=None):
     env.step(200)
     # Define start and target positions
     start_position = robot.data["position"]
-    target_position = [0.29251301288604736, 0.2508874237537384, 1.3711309432983398+0.5]
+    target_position = [0.20392156862745114, 0.0, -0.3294117647058823+0.3]
 
     # target_position = p.get_manikin(body_part="LEFT_ELBOW")
     print(f"Target position: {target_position}")
