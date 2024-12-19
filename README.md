@@ -1,5 +1,7 @@
 # PhyRCBath
-RoboNotts development for the PhyRC Challenge
+RoboNotts development for the PhyRC Challenge.
+
+Run `robonotts_bathing_main.py` for current working solution. 
 
 ## Perception
 The Perception class is contained in `bathing_perception.py`. To use this code you will need to create an instance of the Perception class and pass in the `BathingEnv` variable. There is a minimal working version of how to use the Perception class in `bathing_perception_test.py`.
